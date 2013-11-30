@@ -4,7 +4,7 @@
 // This header allows your project to link against the reference library. If you
 // complete the entire project, you should be able to remove this directive and
 // still compile your code.
-#include "reference_implementation.h"
+//#include "reference_implementation.h"
 
 // Definitions for ext2cat to compile against.
 #include "ext2_access.h"
@@ -116,7 +116,26 @@ struct ext2_inode * get_root_dir(void * fs) {
 __u32 get_inode_from_dir(void * fs, struct ext2_inode * dir, 
         char * name) {
     // FIXME: Uses reference implementation.
-    return _ref_get_inode_from_dir(fs, dir, name);
+    //return _ref_get_inode_from_dir(fs, dir, name);
+    int i;
+    void* block;
+    void* dir_ptr;
+    struct ext2_dir_entry_2* cur_dir;
+    __u32 block_size = get_block_size(get_super_block(fs));
+    for(i=0;i<EXT2_NDIR_BLOCKS;i++)
+      {
+	block = get_block(fs, dir->i_block[i]);
+	cur_dir = (struct ext2_dir_entry_2*) block;
+	for(dir_ptr = block;
+	    dir_ptr < (block + block_size) && cur_dir->rec_len;
+	    dir_ptr += cur_dir->rec_len)
+	  {
+	    cur_dir = (struct ext2_dir_entry_2*)dir_ptr;
+	    if(strncmp(name, cur_dir->name, cur_dir->name_len) == 0)
+	      return cur_dir->inode;
+	  }
+      }
+    return 0;
 }
 
 
@@ -124,6 +143,21 @@ __u32 get_inode_from_dir(void * fs, struct ext2_inode * dir,
 // This is the functionality that ext2cat ultimately needs.
 __u32 get_inode_by_path(void * fs, char * path) {
     // FIXME: Uses reference implementation.
-    return _ref_get_inode_by_path(fs, path);
+    //return _ref_get_inode_by_path(fs, path);
+    int count = 0;
+    __u32 inode_from_dir;
+    struct ext2_inode* root_dir = get_root_dir(fs);
+    struct ext2_inode* next = root_dir;
+    char** path_atoms = split_path(path);
+    char* slash;
+    for(slash = path; slash != NULL; slash = strchr(slash+1, '/'))
+      {
+	inode_from_dir = get_inode_from_dir(fs, next, path_atoms[count]);
+	if(!inode_from_dir)
+	  return 0;
+	next = get_inode(fs, inode_from_dir);
+	count++;
+      }
+    return inode_from_dir;
 }
 
