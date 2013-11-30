@@ -18,14 +18,15 @@
 // Return a pointer to the primary superblock of a filesystem.
 struct ext2_super_block * get_super_block(void * fs) {
     // FIXME: Uses reference implementation.
-    return _ref_get_super_block(fs);
+    return fs + SUPERBLOCK_OFFSET;
 }
 
 
 // Return the block size for a filesystem.
 __u32 get_block_size(void * fs) {
     // FIXME: Uses reference implementation.
-    return _ref_get_block_size(fs);
+    //return _ref_get_block_size(fs);
+    return EXT2_BLOCK_SIZE(get_super_block(fs));
 }
 
 
@@ -33,7 +34,8 @@ __u32 get_block_size(void * fs) {
 // get_block(fs, 0) == fs;
 void * get_block(void * fs, __u32 block_num) {
     // FIXME: Uses reference implementation.
-    return _ref_get_block(fs, block_num);
+    //return _ref_get_block(fs, block_num);
+    return fs + get_block_size(fs) * block_num;
 }
 
 
@@ -42,7 +44,8 @@ void * get_block(void * fs, __u32 block_num) {
 // assume there is only one.
 struct ext2_group_desc * get_block_group(void * fs, __u32 block_group_num) {
     // FIXME: Uses reference implementation.
-    return _ref_get_block_group(fs, block_group_num);
+    //return _ref_get_block_group(fs, block_group_num);
+    return fs + SUPERBLOCK_OFFSET + SUPERBLOCK_SIZE;
 }
 
 
@@ -51,7 +54,17 @@ struct ext2_group_desc * get_block_group(void * fs, __u32 block_group_num) {
 // first one.
 struct ext2_inode * get_inode(void * fs, __u32 inode_num) {
     // FIXME: Uses reference implementation.
-    return _ref_get_inode(fs, inode_num);
+    //return _ref_get_inode(fs, inode_num);
+    // determine offset
+    struct ext2_super_block* super = get_super_block(fs);
+    __u32 blocks_per_group = EXT2_BLOCKS_PER_GROUP(super);
+    __u32 block_group = (inode_num - 1) / blocks_per_group;
+    __u32 offset = (inode_num - 1) % blocks_per_group;
+    // find the first indoe in group
+    struct ext2_group_desc* group = get_block_group(fs, block_group);
+    __u32 inode_table = group->bg_inode_table;
+    void* first_entry = get_block(fs, inode_table);
+    return first_entry + offset * EXT2_INODE_SIZE(super);
 }
 
 
