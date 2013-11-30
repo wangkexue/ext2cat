@@ -32,13 +32,52 @@ int main(int argc, char ** argv) {
     // Read the file one block at a time. In the real world, there would be a
     // lot of error-handling code here.
     __u32 bytes_left;
-    for (int i = 0; i < EXT2_NDIR_BLOCKS; i++) {
-        bytes_left = size - bytes_read;
-        if (bytes_left == 0) break;
-        __u32 bytes_to_read = bytes_left > block_size ? block_size : bytes_left;
-        void * block = get_block(fs, target_ino->i_block[i]);
-        memcpy(buf + bytes_read, block, bytes_to_read);
-        bytes_read += bytes_to_read;
+    
+    void* block = NULL;
+    __u32 bytes_to_read;
+    __u32 blocks_per_inode = block_size / sizeof(__u32);
+
+    for (int i = 0; i < EXT2_N_BLOCKS - 1; i++) {
+      block = get_block(fs, target_ino->i_block[i]);
+      if(i < EXT2_DIND_BLOCK - 1)
+	{  
+	  bytes_left = size - bytes_read;
+	  if (bytes_left == 0) break;
+	  bytes_to_read = bytes_left > block_size ? block_size : bytes_left;
+	  memcpy(buf + bytes_read, block, bytes_to_read);
+	  bytes_read += bytes_to_read;
+	}
+      else if(i == EXT2_DIND_BLOCK - 1)
+	{
+	  __u32 j;
+	  void* indir = NULL;
+	  for(j=0;j<blocks_per_inode;j++)
+	    {
+	      bytes_left = size - bytes_read;
+	      if (bytes_left == 0) break;
+	      bytes_to_read = bytes_left > block_size ? block_size : bytes_left;
+	      indir = get_block(fs, *(__u32*)(block+j*sizeof(__u32)));
+	      memcpy(buf + bytes_read, indir, bytes_to_read);
+	      bytes_read += bytes_to_read;
+	    }
+	}
+      else if(i == EXT2_TIND_BLOCK - 1)
+	{
+	  __u32 j, k;
+	  void* indir_2 = NULL;
+	  for(j=0;j<blocks_per_inode;j++)
+	    {
+	      indir_2 = get_block(fs, *(__u32*)(block+(j*sizeof(__u32))));
+	      for(k=0;k<blocks_per_inode;k++)
+		{
+		  bytes_left = size - bytes_read;
+		  if (bytes_left == 0) break;
+		  bytes_to_read = bytes_left > block_size ? block_size : bytes_left;
+		  memcpy(buf + bytes_read, indir_2, bytes_to_read);
+		  bytes_read += bytes_to_read;
+		}
+	    }
+	}
     }
 
     write(1, buf, bytes_read);
